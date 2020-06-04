@@ -34,5 +34,6 @@
 [0m[[0mdebug[0m] [0m	Thread run-main-0 exited.[0m
 [0m[[0mdebug[0m] [0mWaiting for thread graphql-server-akka.io.pinned-dispatcher-5 to terminate.[0m
 [0m[[0mdebug[0m] [0m	Thread graphql-server-akka.io.pinned-dispatcher-5 exited.[0m
-[0m[[0mdebug[0m] [0mWaiting for thread graphql-server-akka.actor.default-dispatcher-4 to terminate.[0m
-[0m[[0mdebug[0m] [0m	Thread graphql-server-akka.actor.default-dispatcher-4 exited.[0m
+[0m[[0mdebug[0m] [0mWaiting for thread graphql-server-akka.actor.default-dispatcher-2 to terminate.[0m
+[0m[[0mdebug[0m] [0m	Thread graphql-server-akka.actor.default-dispatcher-2 exited.[0m
+[0m[[0mdebug[0m] [0mInterrupting remaining threads (should be all daemons).[0m
