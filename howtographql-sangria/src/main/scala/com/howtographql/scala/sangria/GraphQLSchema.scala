@@ -4,11 +4,9 @@ import akka.http.scaladsl.model.DateTime
 import sangria.schema.{ListType, ObjectType}
 import models._
 import sangria.ast.StringValue
-import sangria.execution.deferred.{DeferredResolver, Fetcher, HasId}
+import sangria.execution.deferred.{DeferredResolver, Fetcher, Relation, RelationIds}
 import sangria.schema._
 import sangria.macros.derive._
-import sangria.execution.deferred.Relation
-import sangria.execution.deferred.RelationIds
 
 object GraphQLSchema {
 
@@ -46,8 +44,11 @@ object GraphQLSchema {
   lazy val UserType: ObjectType[Unit, User] = deriveObjectType[Unit, User](
     Interfaces(IdentifiableType),
     AddFields(
-      Field("links", ListType(LinkType), resolve = c =>  linksFetcher.deferRelSeq(linkByUserRel, c.value.id)),
-      Field("votes", ListType(VoteType), resolve = c =>  votesFetcher.deferRelSeq(voteByUserRel, c.value.id))
+      Field("links", ListType(LinkType),
+        resolve = c =>  linksFetcher.deferRelSeq(linkByUserRel, c.value.id)),
+      Field("votes", ListType(VoteType),
+        resolve = c =>  votesFetcher.deferRelSeq(voteByUserRel, c.value.id))
+
     )
   )
 
@@ -58,10 +59,21 @@ object GraphQLSchema {
     AddFields(Field("link",  LinkType, resolve = c => linksFetcher.defer(c.value.linkId)))
   )
 
+  import sangria.marshalling.sprayJson._
+  import spray.json.DefaultJsonProtocol._
+
+  implicit val authProviderEmailFormat = jsonFormat2(AuthProviderEmail)
+  implicit val authProviderSignupDataFormat = jsonFormat1(AuthProviderSignupData)
+
+  implicit val AuthProviderEmailInputType: InputObjectType[AuthProviderEmail] = deriveInputObjectType[AuthProviderEmail](
+    InputObjectTypeName("AUTH_PROVIDER_EMAIL")
+  )
+
+  lazy val AuthProviderSignupDataInputType: InputObjectType[AuthProviderSignupData] = deriveInputObjectType[AuthProviderSignupData]()
 
   val linkByUserRel = Relation[Link, Int]("byUser", l => Seq(l.postedBy))
-  val voteByUserRel = Relation[Vote, Int]("byUser", v => Seq(v.userId))
   val voteByLinkRel = Relation[Vote, Int]("byLink", v => Seq(v.linkId))
+  val voteByUserRel = Relation[Vote, Int]("byUser", v => Seq(v.userId))
 
   val linksFetcher = Fetcher.rel(
     (ctx: MyContext, ids: Seq[Int]) => ctx.dao.getLinks(ids),
@@ -110,5 +122,43 @@ object GraphQLSchema {
     )
   )
 
-  val SchemaDefinition = Schema(QueryType)
+  val NameArg = Argument("name", StringType)
+  val AuthProviderArg = Argument("authProvider", AuthProviderSignupDataInputType)
+  val UrlArg = Argument("url", StringType)
+  val DescArg = Argument("description", StringType)
+  val PostedByArg = Argument("postedById", IntType)
+  val LinkIdArg = Argument("linkId", IntType)
+  val UserIdArg = Argument("userId", IntType)
+  val EmailArg = Argument("email", StringType)
+  val PasswordArg = Argument("password", StringType)
+
+  val Mutation = ObjectType(
+    "Mutation",
+    fields[MyContext, Unit](
+      Field("createUser",
+        UserType,
+        arguments = NameArg :: AuthProviderArg :: Nil,
+        resolve = c => c.ctx.dao.createUser(c.arg(NameArg), c.arg(AuthProviderArg))
+      ),
+      Field("createLink",
+        LinkType,
+        arguments = UrlArg :: DescArg :: PostedByArg :: Nil,
+        tags = Authorized :: Nil,
+        resolve = c => c.ctx.dao.createLink(c.arg(UrlArg), c.arg(DescArg), c.arg(PostedByArg))),
+      Field("createVote",
+        VoteType,
+        arguments = LinkIdArg :: UserIdArg :: Nil,
+        resolve = c => c.ctx.dao.createVote(c.arg(LinkIdArg), c.arg(UserIdArg))),
+      Field("login",
+        UserType,
+        arguments = EmailArg :: PasswordArg :: Nil,
+        resolve = ctx => UpdateCtx(
+          ctx.ctx.login(ctx.arg(EmailArg), ctx.arg(PasswordArg))){ user =>
+          ctx.ctx.copy(currentUser = Some(user))
+        }
+      )
+    )
+  )
+
+  val SchemaDefinition = Schema(QueryType, Some(Mutation))
 }
